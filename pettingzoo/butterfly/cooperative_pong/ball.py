@@ -111,13 +111,18 @@ class Ball(pygame.sprite.Sprite):
         self._rect.y += self._speed[1]
 
         if not area.contains(self._rect):
+            # Reflect the ball about the wall it crossed rather than resting it
+            # against that wall. Clamping discards the distance travelled after
+            # the crossing, and that distance grows with the ball's speed, so a
+            # fast ball ends the step further from its physical position than a
+            # slow one.
             # bottom wall
             if self._rect.bottom > area.bottom:
-                self._rect.bottom = area.bottom
+                self._rect.bottom = 2 * area.bottom - self._rect.bottom
                 self._speed[1] = -self._speed[1]
             # top wall
             elif self._rect.top < area.top:
-                self._rect.top = area.top
+                self._rect.top = 2 * area.top - self._rect.top
                 self._speed[1] = -self._speed[1]
 
         # after bouncing back from the top/bottom, if it is still out of
