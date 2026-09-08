@@ -38,8 +38,23 @@ def make_env(n_envs: int = 8):
     )
 
 
-def train(steps: int) -> None:
-    """PPO on the default reward. gamma is high so distant forward progress survives discounting."""
+def train(steps: int, seed: int) -> None:
+    """PPO on the default reward. gamma is high so distant forward progress survives discounting.
+
+    ``seed`` is applied to torch and numpy directly rather than through PPO's
+    own ``seed=``: SB3 forwards that to ``env.seed()``, which SuperSuit's
+    ConcatVecEnv does not implement, so passing it raises AttributeError.
+
+    This pins the run, not the bytes of the checkpoint. PyTorch does not
+    promise bit-identical results across versions or hardware, so the thing
+    to reproduce is the reported displacement, not a file hash.
+    """
+    import numpy as np
+    import torch
+
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+
     model = PPO(
         "MlpPolicy",
         make_env(),
@@ -98,6 +113,7 @@ def render(path: str, seed: int, stride: int, scale: int) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--steps", type=int, default=6_000_000)
+    parser.add_argument("--seed", type=int, default=0, help="training seed")
     parser.add_argument("--gif", type=str, default=None)
     parser.add_argument("--gif-seed", type=int, default=1)
     parser.add_argument("--stride", type=int, default=5, help="keep every Nth frame")
@@ -107,7 +123,7 @@ def main() -> None:
     if args.gif:
         render(args.gif, args.gif_seed, args.stride, args.scale)
     else:
-        train(args.steps)
+        train(args.steps, args.seed)
 
 
 if __name__ == "__main__":
