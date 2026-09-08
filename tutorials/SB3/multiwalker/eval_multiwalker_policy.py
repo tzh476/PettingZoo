@@ -44,10 +44,17 @@ def main() -> None:
     args = ap.parse_args()
 
     model = PPO.load(args.model)
-    trained = lambda o: model.predict(o, deterministic=True)[0]
-    still = lambda o: np.zeros(4, dtype=np.float32)
     rng = np.random.default_rng(0)
-    rand = lambda o: rng.uniform(-1, 1, 4).astype(np.float32)
+
+    def trained(obs):
+        return model.predict(obs, deterministic=True)[0]
+
+    def still(obs):
+        """Zero torque. Scores well on reward without going anywhere."""
+        return np.zeros(4, dtype=np.float32)
+
+    def rand(obs):
+        return rng.uniform(-1, 1, 4).astype(np.float32)
 
     print(f"{'arm':<16}{'seeds':<12}{'displacement':>16}{'reward':>10}{'steps':>8}")
     for name, pol in [("PPO", trained), ("do nothing", still), ("random", rand)]:
