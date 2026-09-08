@@ -39,11 +39,6 @@ try:  # pragma: no cover - exercised by whichever version is installed
 except ImportError:
     from pettingzoo.butterfly import cooperative_pong_v6 as cooperative_pong
 
-# Columns owned by each paddle in the rendered frame. Anything white outside
-# both bands is the ball.
-LEFT_PADDLE_COLS = 12
-RIGHT_PADDLE_COLS = 419
-
 STAY, UP, DOWN = 0, 1, 2
 
 
@@ -52,26 +47,38 @@ def _white_mask(frame: np.ndarray) -> np.ndarray:
     return frame[:, :, 0] > 127
 
 
+def _edge_runs(mask: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Lit pixels contiguously connected to the left and to the right edge.
+
+    Both paddles are anchored to their own screen edge and the ball never is,
+    so edge connectivity separates them without hard-coded columns. The right
+    paddle is a four-rectangle staircase spanning 60 px, and a fixed column cut
+    wide enough to contain it also hides every ball in that strip.
+    """
+    left = np.cumprod(mask, axis=1).astype(bool)
+    right = np.cumprod(mask[:, ::-1], axis=1)[:, ::-1].astype(bool)
+    return left, right
+
+
 def find_ball_y(frame: np.ndarray) -> float | None:
     """Vertical centre of the ball, or None when it is not on screen.
 
-    The ball is found by excluding the two paddle column bands rather than by
-    tracking a colour, because every entity renders in the same white.
+    The ball is whatever is lit but not joined to either edge, because every
+    entity renders in the same white and only the paddles touch an edge.
     """
     mask = _white_mask(frame)
-    mask[:, :LEFT_PADDLE_COLS] = False
-    mask[:, RIGHT_PADDLE_COLS:] = False
-    rows = np.nonzero(mask.any(axis=1))[0]
+    left, right = _edge_runs(mask)
+    rows = np.nonzero((mask & ~left & ~right).any(axis=1))[0]
     if rows.size == 0:
         return None
     return float((rows[0] + rows[-1]) / 2.0)
 
 
 def find_paddle_y(frame: np.ndarray, side: str) -> float | None:
-    """Vertical centre of one paddle, read from its own column band."""
+    """Vertical centre of one paddle, read from the run joined to its edge."""
     mask = _white_mask(frame)
-    band = mask[:, :LEFT_PADDLE_COLS] if side == "left" else mask[:, RIGHT_PADDLE_COLS:]
-    rows = np.nonzero(band.any(axis=1))[0]
+    left, right = _edge_runs(mask)
+    rows = np.nonzero((left if side == "left" else right).any(axis=1))[0]
     if rows.size == 0:
         return None
     return float((rows[0] + rows[-1]) / 2.0)
